@@ -137,6 +137,67 @@ body:not(.locked) .unlock-gate {
     font-family: inherit;
 }
 
+.password-field {
+    position: relative;
+}
+
+.password-field input {
+    padding-right: 2.6rem;
+}
+
+.password-toggle {
+    position: absolute;
+    top: 50%;
+    right: 0.2rem;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.unlock-card .password-toggle,
+.librelink-login .password-toggle {
+    width: 2.1rem;
+    margin: 0;
+}
+
+.password-toggle:hover,
+.password-toggle:focus-visible {
+    color: var(--ink);
+}
+
+.password-toggle:focus-visible {
+    outline: 2px solid #2a8f84;
+    outline-offset: 1px;
+}
+
+.password-toggle svg {
+    width: 1.15rem;
+    height: 1.15rem;
+    display: block;
+}
+
+.password-toggle .icon-eye-off {
+    display: none;
+}
+
+.password-field.is-revealed .password-toggle .icon-eye {
+    display: none;
+}
+
+.password-field.is-revealed .password-toggle .icon-eye-off {
+    display: block;
+}
+
 .unlock-card input[type="password"]:focus,
 .unlock-card input[type="text"]:focus,
 .unlock-card input[type="number"]:focus {
