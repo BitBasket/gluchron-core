@@ -14,7 +14,7 @@ final class KeyEnrollmentHandlerTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->dir = sys_get_temp_dir() . '/mylibre-enroll-' . uniqid('', true);
+        $this->dir = sys_get_temp_dir() . '/gluchron-enroll-' . uniqid('', true);
         mkdir($this->dir . '/keys', 0700, true);
     }
 

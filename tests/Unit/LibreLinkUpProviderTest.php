@@ -180,7 +180,7 @@ final class LibreLinkUpProviderTest extends TestCase
     public function testEmptyPasswordWithoutSessionRequiresLogin(): void
     {
         $history = [];
-        $tmp = sys_get_temp_dir() . '/mylibre-session-' . uniqid('', true);
+        $tmp = sys_get_temp_dir() . '/gluchron-session-' . uniqid('', true);
         @mkdir($tmp, 0700, true);
         $provider = $this->provider([], $history, ConfigFactory::make($tmp, email: '', password: ''));
 
@@ -194,7 +194,7 @@ final class LibreLinkUpProviderTest extends TestCase
     public function testSkipsConfiguredCredentialsWhenAsked(): void
     {
         $history = [];
-        $tmp = sys_get_temp_dir() . '/mylibre-session-' . uniqid('', true);
+        $tmp = sys_get_temp_dir() . '/gluchron-session-' . uniqid('', true);
         @mkdir($tmp, 0700, true);
         $provider = $this->provider(
             [],
@@ -212,7 +212,7 @@ final class LibreLinkUpProviderTest extends TestCase
     public function testCachedSessionDoesNotNeedPassword(): void
     {
         $history = [];
-        $tmp = sys_get_temp_dir() . '/mylibre-session-' . uniqid('', true);
+        $tmp = sys_get_temp_dir() . '/gluchron-session-' . uniqid('', true);
         @mkdir($tmp, 0700, true);
         file_put_contents($tmp . '/libre-session.json', json_encode([
             'token' => 'test-token',
@@ -259,7 +259,7 @@ final class LibreLinkUpProviderTest extends TestCase
         bool $useConfiguredCredentials = true,
     ): LibreLinkUpProvider {
         if ($config === null) {
-            $tmp = sys_get_temp_dir() . '/mylibre-session-' . uniqid('', true);
+            $tmp = sys_get_temp_dir() . '/gluchron-session-' . uniqid('', true);
             @mkdir($tmp, 0700, true);
             $config = ConfigFactory::make($tmp);
         }

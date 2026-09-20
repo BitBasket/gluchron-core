@@ -12,7 +12,7 @@ final class PgpCryptoTest extends TestCase
 {
     public function testRoundTripAndRejectsUnsignedCiphertext(): void
     {
-        $dir = sys_get_temp_dir() . '/mylibre-pgp-' . uniqid('', true);
+        $dir = sys_get_temp_dir() . '/gluchron-pgp-' . uniqid('', true);
         mkdir($dir, 0700, true);
         $crypto = PgpKeyFactory::make($dir, 'correct horse');
         $crypto->validate('correct horse');
@@ -27,7 +27,7 @@ final class PgpCryptoTest extends TestCase
 
     public function testPublicKeyOnlyEncryptionIsUnsignedButStillDecryptable(): void
     {
-        $dir = sys_get_temp_dir() . '/mylibre-pgp-pub-' . uniqid('', true);
+        $dir = sys_get_temp_dir() . '/gluchron-pgp-pub-' . uniqid('', true);
         mkdir($dir, 0700, true);
         $crypto = PgpKeyFactory::make($dir, 'correct horse');
 

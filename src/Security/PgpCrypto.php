@@ -398,7 +398,7 @@ CONF;
 
     private function home(): string
     {
-        $home = sys_get_temp_dir() . '/mylibre-gpg-' . bin2hex(random_bytes(12));
+        $home = sys_get_temp_dir() . '/gluchron-gpg-' . bin2hex(random_bytes(12));
         $umask = umask(0077);
         $ok = mkdir($home, 0700, true);
         umask($umask);

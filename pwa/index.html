@@ -5,16 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#07131a">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Libre Glucose</title>
+    <meta name="apple-mobile-web-app-title" content="My GluChron">
+    <meta name="description" content="My CGM glucose chronicle.">
+    <title>My GluChron</title>
     <link rel="manifest" href="/manifest.webmanifest">
     <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
-    <link rel="stylesheet" href="/app.css?v=26">
+    <link rel="stylesheet" href="/app.css?v=27">
 </head>
 <body class="locked">
     <section id="unlock-gate" class="unlock-gate" aria-labelledby="unlock-title">
         <div class="unlock-card">
-            <h1 id="unlock-title">Unlock glucose history</h1>
+            <h1 id="unlock-title">My GluChron</h1>
+            <p class="muted">My CGM glucose chronicle.</p>
 
             <div class="key-modes" role="tablist">
                 <button type="button" id="mode-existing" class="mode active" aria-selected="true">I have a keypair</button>
@@ -33,7 +36,7 @@
                 </div>
                 <form id="unlock-form" method="post" action="/" autocomplete="on" data-form-type="login">
                     <label for="unlock-username">Username</label>
-                    <input id="unlock-username" name="username" type="text" autocomplete="username" value="mylibre" autocapitalize="off" spellcheck="false">
+                    <input id="unlock-username" name="username" type="text" autocomplete="username" value="gluchron" autocapitalize="off" spellcheck="false">
                     <label for="pgp-passphrase">Passphrase</label>
                     <input id="pgp-passphrase" name="password" type="password" autocomplete="current-password" required autofocus autocapitalize="off" autocorrect="off" spellcheck="false">
                     <p id="unlock-error" class="unlock-error hidden" role="alert"></p>
@@ -46,7 +49,7 @@
                 <p class="muted">Your keypair is created in this browser. Download both files, keep the private key safe, and save the passphrase in your password manager. Only the <strong>public</strong> key is sent to this host so new readings can be encrypted to you. The private key never leaves this device.</p>
                 <form id="new-key-form" method="post" action="/" autocomplete="on" data-form-type="signup">
                     <label for="new-username">Username</label>
-                    <input id="new-username" name="username" type="text" autocomplete="username" value="mylibre" autocapitalize="off" spellcheck="false">
+                    <input id="new-username" name="username" type="text" autocomplete="username" value="gluchron" autocapitalize="off" spellcheck="false">
                     <label for="new-passphrase">Passphrase</label>
                     <input id="new-passphrase" name="password" type="password" autocomplete="new-password" required minlength="12" autocapitalize="off" autocorrect="off" spellcheck="false">
                     <label for="new-passphrase-confirm">Confirm passphrase</label>
@@ -68,7 +71,7 @@
     <main class="shell">
         <header class="top">
             <div>
-                <h1>Glucose</h1>
+                <h1>My GluChron</h1>
                 <p id="source-line" class="muted">encrypted local snapshot</p>
             </div>
             <div class="top-actions">
@@ -76,6 +79,7 @@
                 <button type="button" id="import-btn" class="lock-btn">Import</button>
                 <input id="import-file" type="file" accept=".csv,.asc,.gpg,.pgp,text/csv,text/plain,application/pgp-encrypted" hidden>
                 <button type="button" id="lock-btn" class="lock-btn">Lock</button>
+                <button type="button" id="migrate-cloud-btn" class="lock-btn hidden">Move to Cloud</button>
                 <button type="button" id="settings-btn" class="lock-btn">Settings</button>
             </div>
         </header>
@@ -145,6 +149,27 @@
                 <button type="submit" id="import-passphrase-submit">Decrypt</button>
             </div>
         </form>
+    </div>
+    <div id="migrate-cloud-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="migrate-cloud-title">
+        <div class="unlock-card">
+            <h2 id="migrate-cloud-title">Move to Cloud</h2>
+            <div id="migrate-cloud-intro">
+                <p class="muted">This copies your <strong>encrypted</strong> glucose history and your public key to the hosted GluChron Cloud. Your private key and password stay on this device. LibreLink will need to be connected again on the new dashboard.</p>
+                <p class="warn">The new address is your account. Anyone who has it and your unlock password can see your glucose. Bookmark it.</p>
+            </div>
+            <p id="migrate-cloud-status" class="muted hidden" role="status"></p>
+            <p id="migrate-cloud-error" class="unlock-error hidden" role="alert"></p>
+            <p id="migrate-cloud-url-wrap" class="hidden">
+                <label for="migrate-cloud-url">Your Cloud dashboard</label>
+                <input id="migrate-cloud-url" type="text" readonly>
+            </p>
+            <div class="modal-actions">
+                <button type="button" id="migrate-cloud-cancel" class="secondary">Cancel</button>
+                <button type="button" id="migrate-cloud-copy" class="secondary hidden">Copy link</button>
+                <button type="button" id="migrate-cloud-open" class="hidden">Open</button>
+                <button type="button" id="migrate-cloud-confirm">Create Cloud account</button>
+            </div>
+        </div>
     </div>
     <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <form id="settings-form" class="unlock-card" novalidate>

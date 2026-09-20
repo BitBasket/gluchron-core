@@ -9,7 +9,7 @@
     const tenantId = (TENANT_RE.exec(location.pathname) || [])[1] || '';
 
     function storageKey(name) {
-        return tenantId ? `mylibre.${tenantId}.${name}` : `mylibre.${name}`;
+        return tenantId ? `gluchron.${tenantId}.${name}` : `gluchron.${name}`;
     }
 
     const SETTINGS_KEY = storageKey('settings');
@@ -50,6 +50,17 @@
     const unlockBtn = document.getElementById('unlock-btn');
     const forgetKeysBtn = document.getElementById('forget-keys');
     const lockBtn = document.getElementById('lock-btn');
+    const migrateCloudBtn = document.getElementById('migrate-cloud-btn');
+    const migrateCloudModal = document.getElementById('migrate-cloud-modal');
+    const migrateCloudCancel = document.getElementById('migrate-cloud-cancel');
+    const migrateCloudConfirm = document.getElementById('migrate-cloud-confirm');
+    const migrateCloudCopy = document.getElementById('migrate-cloud-copy');
+    const migrateCloudOpen = document.getElementById('migrate-cloud-open');
+    const migrateCloudError = document.getElementById('migrate-cloud-error');
+    const migrateCloudStatus = document.getElementById('migrate-cloud-status');
+    const migrateCloudUrlWrap = document.getElementById('migrate-cloud-url-wrap');
+    const migrateCloudUrl = document.getElementById('migrate-cloud-url');
+    const migrateCloudIntro = document.getElementById('migrate-cloud-intro');
     const exportBtn = document.getElementById('export-btn');
     const importBtn = document.getElementById('import-btn');
     const importFile = document.getElementById('import-file');
@@ -499,7 +510,7 @@
     function exportHistory() {
         const readings = historyForExport();
         downloadText(
-            'mylibre.history.csv',
+            'gluchron.history.csv',
             encodeHistoryCsv(readings),
             'text/csv',
         );
@@ -1960,7 +1971,7 @@
             if (response.status === 403) {
                 return {
                     ok: false,
-                    error: 'HTTPS is required to send your public key to this host. Point a hostname at it and set MYLIBRE_SITE.',
+                    error: 'HTTPS is required to send your public key to this host. Point a hostname at it and set GLUCHRON_SITE.',
                 };
             }
             if (response.status === 409) {
@@ -2379,6 +2390,128 @@
         return { settings: next };
     }
 
+    function setMigrateError(message) {
+        if (!migrateCloudError) {
+            return;
+        }
+        migrateCloudError.textContent = message || '';
+        migrateCloudError.classList.toggle('hidden', !message);
+    }
+
+    function closeMigrateCloud() {
+        if (!migrateCloudModal) {
+            return;
+        }
+        migrateCloudModal.classList.add('hidden');
+        if (migrateCloudBtn) {
+            migrateCloudBtn.focus();
+        }
+    }
+
+    function openMigrateCloud() {
+        if (!migrateCloudModal) {
+            return;
+        }
+        setMigrateError('');
+        if (migrateCloudStatus) {
+            migrateCloudStatus.textContent = '';
+            migrateCloudStatus.classList.add('hidden');
+        }
+        if (migrateCloudIntro) {
+            migrateCloudIntro.classList.remove('hidden');
+        }
+        if (migrateCloudUrlWrap) {
+            migrateCloudUrlWrap.classList.add('hidden');
+        }
+        if (migrateCloudCopy) {
+            migrateCloudCopy.classList.add('hidden');
+        }
+        if (migrateCloudOpen) {
+            migrateCloudOpen.classList.add('hidden');
+        }
+        if (migrateCloudConfirm) {
+            migrateCloudConfirm.classList.remove('hidden');
+            migrateCloudConfirm.disabled = false;
+        }
+        migrateCloudModal.classList.remove('hidden');
+    }
+
+    if (migrateCloudBtn && !tenantId) {
+        migrateCloudBtn.classList.remove('hidden');
+        migrateCloudBtn.addEventListener('click', openMigrateCloud);
+    }
+    if (migrateCloudCancel) {
+        migrateCloudCancel.addEventListener('click', closeMigrateCloud);
+    }
+    if (migrateCloudModal) {
+        migrateCloudModal.addEventListener('click', (event) => {
+            if (event.target === migrateCloudModal) {
+                closeMigrateCloud();
+            }
+        });
+    }
+    if (migrateCloudCopy && migrateCloudUrl) {
+        migrateCloudCopy.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(migrateCloudUrl.value);
+            } catch (error) {
+                migrateCloudUrl.select();
+            }
+        });
+    }
+    if (migrateCloudOpen && migrateCloudUrl) {
+        migrateCloudOpen.addEventListener('click', () => {
+            if (migrateCloudUrl.value) {
+                window.open(migrateCloudUrl.value, '_blank', 'noopener');
+            }
+        });
+    }
+    if (migrateCloudConfirm) {
+        migrateCloudConfirm.addEventListener('click', async () => {
+            setMigrateError('');
+            migrateCloudConfirm.disabled = true;
+            if (migrateCloudStatus) {
+                migrateCloudStatus.textContent = 'Copying encrypted history to Cloud…';
+                migrateCloudStatus.classList.remove('hidden');
+            }
+            try {
+                const response = await fetch('api/migrate-to-cloud', {
+                    method: 'POST',
+                    cache: 'no-store',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: '{}',
+                });
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok || !payload.ok || !payload.url) {
+                    throw new Error(payload.error || 'Could not create the Cloud account.');
+                }
+                if (migrateCloudIntro) {
+                    migrateCloudIntro.classList.add('hidden');
+                }
+                if (migrateCloudUrlWrap && migrateCloudUrl) {
+                    migrateCloudUrl.value = payload.url;
+                    migrateCloudUrlWrap.classList.remove('hidden');
+                }
+                if (migrateCloudCopy) {
+                    migrateCloudCopy.classList.remove('hidden');
+                }
+                if (migrateCloudOpen) {
+                    migrateCloudOpen.classList.remove('hidden');
+                }
+                migrateCloudConfirm.classList.add('hidden');
+                if (migrateCloudStatus) {
+                    migrateCloudStatus.textContent = 'Done. Unlock on Cloud with the same key files, then connect LibreLink.';
+                }
+            } catch (error) {
+                if (migrateCloudStatus) {
+                    migrateCloudStatus.classList.add('hidden');
+                }
+                setMigrateError(error.message || String(error));
+                migrateCloudConfirm.disabled = false;
+            }
+        });
+    }
+
     settingsBtn.addEventListener('click', openSettings);
     settingsCancel.addEventListener('click', closeSettings);
     settingsModal.addEventListener('click', (event) => {
@@ -2387,6 +2520,10 @@
         }
     });
     document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && migrateCloudModal && !migrateCloudModal.classList.contains('hidden')) {
+            closeMigrateCloud();
+            return;
+        }
         if (event.key === 'Escape' && !settingsModal.classList.contains('hidden')) {
             closeSettings();
         }

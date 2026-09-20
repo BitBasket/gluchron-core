@@ -12,7 +12,7 @@ final class ConfigTest extends TestCase
 {
     public function testLoadsEnvFile(): void
     {
-        $root = sys_get_temp_dir() . '/mylibre-config-' . uniqid('', true);
+        $root = sys_get_temp_dir() . '/gluchron-config-' . uniqid('', true);
         mkdir($root);
         file_put_contents($root . '/.env', "HOST=127.0.0.1\nPORT=8765\nGLUCOSE_PROVIDER=mock\nSESSION_PATH=data/libre-session.json.asc\n");
 
@@ -32,7 +32,7 @@ final class ConfigTest extends TestCase
 
     public function testAuthListen(): void
     {
-        $root = sys_get_temp_dir() . '/mylibre-config-' . uniqid('', true);
+        $root = sys_get_temp_dir() . '/gluchron-config-' . uniqid('', true);
         mkdir($root);
         file_put_contents($root . '/.env', "AUTH_LISTEN=127.0.0.1:8766\n");
         Env::reset();
@@ -47,7 +47,7 @@ final class ConfigTest extends TestCase
 
     public function testLibreLinkCredentialsComeFromDotEnv(): void
     {
-        $root = sys_get_temp_dir() . '/mylibre-config-' . uniqid('', true);
+        $root = sys_get_temp_dir() . '/gluchron-config-' . uniqid('', true);
         mkdir($root);
         file_put_contents($root . '/.env', "LIBRELINK_EMAIL=user@example.com\nLIBRELINK_PASSWORD=env-secret\n");
         Env::reset();
@@ -69,7 +69,7 @@ final class ConfigTest extends TestCase
 
     public function testEmptyAuthListenDisablesIntake(): void
     {
-        $root = sys_get_temp_dir() . '/mylibre-config-' . uniqid('', true);
+        $root = sys_get_temp_dir() . '/gluchron-config-' . uniqid('', true);
         mkdir($root);
         file_put_contents($root . '/.env', "AUTH_LISTEN=\n");
         Env::reset();

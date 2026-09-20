@@ -21,7 +21,7 @@ final class BucketWriterTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->directory = sys_get_temp_dir() . '/mylibre-bucket-' . uniqid('', true);
+        $this->directory = sys_get_temp_dir() . '/gluchron-bucket-' . uniqid('', true);
         mkdir($this->directory, 0700, true);
         $this->keys = PgpKeyFactory::shared(self::PASSPHRASE);
     }

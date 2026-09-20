@@ -70,7 +70,7 @@ function gpg(home, args, input) {
 
 async function main() {
     const { openpgp, PgpVault } = loadPgpVault();
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'mylibre-pgp-import-'));
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'gluchron-pgp-import-'));
     fs.chmodSync(home, 0o700);
 
     try {
@@ -112,7 +112,7 @@ async function main() {
             '--pinentry-mode', 'loopback',
             '--passphrase', 'key-passphrase-12',
             '--quick-generate-key',
-            'MyLibre Test <mylibre@example.com>',
+            'GluChron Test <gluchron@example.com>',
             'default',
             'default',
             'never',

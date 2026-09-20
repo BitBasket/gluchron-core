@@ -1,4 +1,4 @@
-const CACHE = 'mylibre-static-v37';
+const CACHE = 'gluchron-static-v38';
 const ASSETS = [
     '/',
     '/index.html',

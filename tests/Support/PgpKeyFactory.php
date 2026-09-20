@@ -40,7 +40,7 @@ final class PgpKeyFactory
             return self::$shared[$passphrase];
         }
 
-        $directory = sys_get_temp_dir() . '/mylibre-shared-key-' . substr(hash('sha256', $passphrase), 0, 16);
+        $directory = sys_get_temp_dir() . '/gluchron-shared-key-' . substr(hash('sha256', $passphrase), 0, 16);
         if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
             throw new \RuntimeException('Unable to create the shared test key directory.');
         }

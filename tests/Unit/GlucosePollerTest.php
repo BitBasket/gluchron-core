@@ -34,7 +34,7 @@ final class GlucosePollerTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->directory = sys_get_temp_dir() . '/mylibre-poller-' . uniqid('', true);
+        $this->directory = sys_get_temp_dir() . '/gluchron-poller-' . uniqid('', true);
         mkdir($this->directory, 0700, true);
         $this->keys = PgpKeyFactory::shared(self::PASSPHRASE);
     }
@@ -430,7 +430,7 @@ final class GlucosePollerTest extends TestCase
             }
         };
 
-        $csvPath = $this->directory . '/mylibre.history.csv';
+        $csvPath = $this->directory . '/gluchron.history.csv';
         Carbon::setTestNow('2026-09-04T09:10:00Z');
         $poller = $this->poller($provider, fopen('php://memory', 'ab'), csv: new CsvHistoryStore($csvPath));
         $poller->poll();

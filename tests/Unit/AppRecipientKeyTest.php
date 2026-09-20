@@ -21,7 +21,7 @@ final class AppRecipientKeyTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->directory = sys_get_temp_dir() . '/mylibre-recipient-' . uniqid('', true);
+        $this->directory = sys_get_temp_dir() . '/gluchron-recipient-' . uniqid('', true);
         mkdir($this->directory, 0700, true);
     }
 

@@ -1,6 +1,6 @@
 {
-    "name": "bitbasket/mycgm-core",
-    "description": "LibreLink poller, dashboard PHP API, and PWA shared by MyLibre and MyLibre-Cloud",
+    "name": "bitbasket/gluchron-core",
+    "description": "LibreLink poller, dashboard PHP API, and PWA shared by GluChron and GluChron-Cloud",
     "type": "library",
     "license": ["LicenseRef-SBL-1.0", "LicenseRef-OSSAL-1.0"],
     "require": {

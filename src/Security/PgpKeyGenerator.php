@@ -25,7 +25,7 @@ final class PgpKeyGenerator
             throw new RuntimeException('A passphrase is required to generate a protected PGP key.');
         }
 
-        $home = sys_get_temp_dir() . '/mylibre-gpg-gen-' . bin2hex(random_bytes(12));
+        $home = sys_get_temp_dir() . '/gluchron-gpg-gen-' . bin2hex(random_bytes(12));
         $umask = umask(0077);
         $ok = mkdir($home, 0700, true);
         umask($umask);
@@ -42,8 +42,8 @@ Key-Usage: sign
 Subkey-Type: ECDH
 Subkey-Curve: Curve25519
 Subkey-Usage: encrypt
-Name-Real: MyLibre
-Name-Email: mylibre@localhost
+Name-Real: GluChron
+Name-Email: gluchron@localhost
 Expire-Date: 0
 %commit
 BATCH;

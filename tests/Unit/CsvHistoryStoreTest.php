@@ -15,7 +15,7 @@ final class CsvHistoryStoreTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->path = sys_get_temp_dir() . '/mylibre-csv-' . uniqid('', true) . '.csv';
+        $this->path = sys_get_temp_dir() . '/gluchron-csv-' . uniqid('', true) . '.csv';
     }
 
     protected function tearDown(): void

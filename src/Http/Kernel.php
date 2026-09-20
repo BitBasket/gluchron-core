@@ -236,6 +236,6 @@ final class Kernel
 
     public static function pwaDir(string $appRoot): string
     {
-        return $appRoot . '/vendor/bitbasket/mycgm-core/pwa';
+        return $appRoot . '/vendor/bitbasket/gluchron-core/pwa';
     }
 }

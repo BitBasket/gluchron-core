@@ -9,7 +9,7 @@ use RuntimeException;
 
 /**
  * Portable dense history file the dashboard Import button accepts
- * (`mylibre.history.csv`: one UTC day per line, 1440 minute slots).
+ * (`gluchron.history.csv`: one UTC day per line, 1440 minute slots).
  */
 final class CsvHistoryStore
 {

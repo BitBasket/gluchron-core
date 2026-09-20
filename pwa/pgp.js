@@ -1,5 +1,5 @@
 (() => {
-    const DB_NAME = 'mylibre-pgp';
+    const DB_NAME = 'gluchron-pgp';
     const STORE = 'keys';
     let keyId = 'device';
 
@@ -68,7 +68,7 @@
         const { publicKey, privateKey } = await openpgp.generateKey({
             type: 'ecc',
             curve: 'curve25519',
-            userIDs: [{ name: 'MyLibre', email: 'mylibre@example.com' }],
+            userIDs: [{ name: 'GluChron', email: 'gluchron@example.com' }],
             passphrase,
             format: 'armored',
         });

@@ -1,4 +1,4 @@
-# bitbasket/mycgm-core
+# bitbasket/gluchron-core
 
 Shared **engine** for the LibreLink glucose dashboard: PHP poller, `/api/keys` + `/api/librelink/*`, PGP snapshots, and the PWA.
 
@@ -6,10 +6,10 @@ This is a Composer library (`type: library`). It is **not** a product. Products 
 
 | App | Role |
 | --- | --- |
-| **MyLibre** | One dashboard at `/`. Optional proxy of this API. |
-| **MyLibre-Cloud** | N dashboards at `/t/<id>/`. Cloud **wraps** this API; it does not fork it. |
+| **GluChron** | One dashboard at `/`. Optional proxy of this API. |
+| **GluChron-Cloud** | N dashboards at `/t/<id>/`. Cloud **wraps** this API; it does not fork it. |
 
-Until GitHub remotes exist, apps path-require this tree (`../mycgm-core`, `dev-trunk`). Do not copy `src/` or `pwa/` into an app.
+Until GitHub remotes exist, apps path-require this tree (`../gluchron-core`, `dev-trunk`). Do not copy `src/` or `pwa/` into an app.
 
 ## License
 
@@ -30,7 +30,7 @@ Copyright 2026 BitBasket, FZC-LLC. Third-party files under `pwa/vendor/` keep th
 
 Not here: `Tenant*`, `POST /api/tenants`, `signup.html`, Docker, nginx, `bin/serve.php`.
 
-## Cloud wrap (stays in MyLibre-Cloud)
+## Cloud wrap (stays in GluChron-Cloud)
 
 Cloud may add pages and routes this library must not ship. Cloud may **not** own a different graph, a different `pgp.js`, or a different `/api/keys` / `/api/librelink` implementation.
 

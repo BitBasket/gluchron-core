@@ -122,7 +122,7 @@ final class BucketWriter
             return;
         }
 
-        $workspace = sys_get_temp_dir() . '/mylibre-bulk-' . bin2hex(random_bytes(8));
+        $workspace = sys_get_temp_dir() . '/gluchron-bulk-' . bin2hex(random_bytes(8));
         if (!mkdir($workspace, 0700, true) && !is_dir($workspace)) {
             throw new RuntimeException('Unable to create bulk encryption workspace.');
         }
