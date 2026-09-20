@@ -20,7 +20,6 @@ final class Config
         public readonly string $libreLinkBaseUri,
         public readonly string $libreLinkPatientId,
         public readonly string $libreLinkClientVersion,
-        public readonly string $sqlitePath,
         public readonly string $sessionPath,
         public readonly int $abbottPollSeconds,
         public readonly int $browserPollSeconds,
@@ -40,7 +39,6 @@ final class Config
     {
         Env::load($root);
 
-        $sqlite = Env::get('SQLITE_PATH', '') ?? '';
         $session = Env::get('SESSION_PATH', 'data/libre-session.json.asc') ?? 'data/libre-session.json.asc';
         $userPublic = Env::get('PGP_USER_PUBLIC_KEY_PATH', 'data/keys/user-public.asc') ?? 'data/keys/user-public.asc';
 
@@ -56,7 +54,6 @@ final class Config
             libreLinkBaseUri: Env::get('LIBRELINK_BASE_URI', '') ?? '',
             libreLinkPatientId: Env::get('LIBRELINK_PATIENT_ID', '') ?? '',
             libreLinkClientVersion: Env::get('LIBRELINK_CLIENT_VERSION', '4.16.0') ?? '4.16.0',
-            sqlitePath: self::absolutePath($root, $sqlite),
             sessionPath: self::absolutePath($root, $session),
             dataPath: self::absolutePath($root, Env::get('DATA_PATH', 'data/glucose.json.asc') ?? 'data/glucose.json.asc'),
             publicKeyPath: self::absolutePath($root, Env::get('PGP_PUBLIC_KEY_PATH', 'data/keys/public.asc') ?? 'data/keys/public.asc'),

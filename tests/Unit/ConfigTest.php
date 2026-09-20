@@ -14,9 +14,9 @@ final class ConfigTest extends TestCase
     {
         $root = sys_get_temp_dir() . '/mylibre-config-' . uniqid('', true);
         mkdir($root);
-        file_put_contents($root . '/.env', "HOST=127.0.0.1\nPORT=8765\nGLUCOSE_PROVIDER=mock\nSQLITE_PATH=data/glucose.sqlite\n");
+        file_put_contents($root . '/.env', "HOST=127.0.0.1\nPORT=8765\nGLUCOSE_PROVIDER=mock\nSESSION_PATH=data/libre-session.json.asc\n");
 
-        foreach (['HOST', 'PORT', 'GLUCOSE_PROVIDER', 'SQLITE_PATH', 'SESSION_PATH', 'AUTH_LISTEN', 'PGP_USER_PUBLIC_KEY_PATH'] as $key) {
+        foreach (['HOST', 'PORT', 'GLUCOSE_PROVIDER', 'SESSION_PATH', 'AUTH_LISTEN', 'PGP_USER_PUBLIC_KEY_PATH'] as $key) {
             putenv($key);
             unset($_ENV[$key]);
         }
@@ -26,7 +26,6 @@ final class ConfigTest extends TestCase
         $this->assertSame('127.0.0.1', $config->host);
         $this->assertTrue($config->bindsLocalhostOnly());
         $this->assertTrue($config->isMockProvider());
-        $this->assertSame($root . '/data/glucose.sqlite', $config->sqlitePath);
         $this->assertSame('127.0.0.1:8766', $config->authListen);
         $this->assertSame($root . '/data/keys/user-public.asc', $config->userPublicKeyPath);
     }
