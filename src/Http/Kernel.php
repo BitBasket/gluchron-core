@@ -10,8 +10,9 @@ namespace App\Http;
  * The browser talks only to this process. LibreLinkUp login POSTs are
  * forwarded to AUTH_LISTEN on loopback. The poller never binds a public
  * socket. Credential POSTs (LibreLinkUp login and public-key enrollment)
- * are refused unless this is a direct loopback hit or a trusted reverse
- * proxy that already terminated TLS (`X-Forwarded-Proto: https`).
+ * are refused unless this is a direct loopback hit, HTTP to localhost
+ * through a trusted reverse proxy, or a trusted reverse proxy that
+ * already terminated TLS (`X-Forwarded-Proto: https`).
  *
  * Paths are `/api/keys` and `/api/librelink/*`. A Cloud wrap strips
  * `/t/<id>` before calling this class. There is no tenant API.
@@ -137,7 +138,9 @@ final class Kernel
 
     /**
      * Direct loopback HTTP is allowed (the browser is on the same machine).
-     * Anything that arrived through a reverse proxy must already be HTTPS.
+     * HTTP through a reverse proxy is allowed only for localhost from a
+     * private or loopback client. Anything else that arrived through a
+     * reverse proxy must already be HTTPS.
      *
      * @param array<string, mixed> $server
      */
@@ -156,7 +159,23 @@ final class Kernel
                 return false;
             }
 
-            return $forwardedProto === 'https';
+            if ($forwardedProto === 'https') {
+                return true;
+            }
+
+            // Local docker compose on http://localhost: Caddy sets
+            // X-Forwarded-Proto: http and X-Forwarded-For to the Docker
+            // bridge address, not 127.0.0.1. Allow that only when the
+            // browser asked for a loopback Host and the TCP client is
+            // private or loopback. A public client that spoofs Host:
+            // localhost is still refused.
+            $client = trim(explode(',', $forwardedFor)[0]);
+            if ($client === '') {
+                $client = $remote;
+            }
+
+            return self::isLoopbackHost((string) ($server['HTTP_HOST'] ?? ''))
+                && self::isTrustedProxy($client);
         }
 
         return self::isLoopbackAddress($remote) && self::isLoopbackHost((string) ($server['HTTP_HOST'] ?? ''));

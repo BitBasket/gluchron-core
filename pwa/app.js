@@ -1971,7 +1971,7 @@
             if (response.status === 403) {
                 return {
                     ok: false,
-                    error: 'HTTPS is required to send your public key to this host. Point a hostname at it and set GLUCHRON_SITE.',
+                    error: 'HTTPS is required to send your public key to this host. Open http://localhost/ on this machine, or point a hostname at it and set GLUCHRON_SITE.',
                 };
             }
             if (response.status === 409) {

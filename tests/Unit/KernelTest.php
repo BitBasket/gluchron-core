@@ -56,6 +56,32 @@ final class KernelTest extends TestCase
         ]));
     }
 
+    public function testDockerCaddyLocalhostHttpIsAllowed(): void
+    {
+        $this->assertTrue(Kernel::allowsCredentialPost([
+            'REMOTE_ADDR' => '172.18.0.2',
+            'HTTP_HOST' => 'localhost',
+            'HTTP_X_FORWARDED_PROTO' => 'http',
+            'HTTP_X_FORWARDED_FOR' => '172.17.0.1',
+        ]));
+        $this->assertTrue(Kernel::allowsCredentialPost([
+            'REMOTE_ADDR' => '172.18.0.2',
+            'HTTP_HOST' => '127.0.0.1',
+            'HTTP_X_FORWARDED_PROTO' => 'http',
+            'HTTP_X_FORWARDED_FOR' => '172.17.0.1',
+        ]));
+    }
+
+    public function testPublicClientSpoofingLocalhostHostIsRefused(): void
+    {
+        $this->assertFalse(Kernel::allowsCredentialPost([
+            'REMOTE_ADDR' => '172.18.0.2',
+            'HTTP_HOST' => 'localhost',
+            'HTTP_X_FORWARDED_PROTO' => 'http',
+            'HTTP_X_FORWARDED_FOR' => '203.0.113.9',
+        ]));
+    }
+
     public function testSpoofedForwardedProtoFromPublicClientIsRefused(): void
     {
         $this->assertFalse(Kernel::allowsCredentialPost([
@@ -157,6 +183,26 @@ final class KernelTest extends TestCase
 
         $this->assertSame(200, $result['status']);
         $this->assertStringContainsString('"enrolled":false', $result['body']);
+    }
+
+    public function testDockerLocalhostHttpKeyEnrollmentReachesHandler(): void
+    {
+        $dir = $this->tempDir();
+        $keyPath = $dir . '/user-public.asc';
+        $kernel = new Kernel($dir, '', new KeyEnrollmentHandler($keyPath));
+        $result = $kernel->handle([
+            'REQUEST_METHOD' => 'POST',
+            'REQUEST_URI' => '/api/keys',
+            'REMOTE_ADDR' => '172.18.0.2',
+            'HTTP_HOST' => 'localhost',
+            'HTTP_X_FORWARDED_PROTO' => 'http',
+            'HTTP_X_FORWARDED_FOR' => '172.17.0.1',
+            'CONTENT_TYPE' => 'application/json',
+        ], '{"publicKey":"not-a-key"}');
+
+        $this->assertSame(400, $result['status']);
+        $this->assertStringContainsString('public key must be', $result['body']);
+        $this->assertFileDoesNotExist($keyPath);
     }
 
     public function testLoopbackKeyEnrollmentReachesHandler(): void
