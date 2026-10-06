@@ -76,7 +76,35 @@ final class BucketWriter
             'latestReadingAt' => $this->iso($lastReadingAt),
             'browserPollSeconds' => $this->config->browserPollSeconds,
             'loginRequired' => $loginRequired,
+            // Bucket ids only. The dashboard fetches these files instead of
+            // probing every 5-minute slot, most of which 404 between readings.
+            'buckets' => $this->bucketIds(),
         ]);
+    }
+
+    /**
+     * Epoch ids of batch files already on disk, oldest first.
+     *
+     * Names only: the writer still does not read glucose back out of a bucket.
+     *
+     * @return list<int>
+     */
+    public function bucketIds(): array
+    {
+        $dir = $this->directory . '/b';
+        if (!is_dir($dir)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach (scandir($dir) ?: [] as $name) {
+            if (preg_match('/^(\d+)\.json\.asc$/', $name, $matches) === 1) {
+                $ids[] = (int) $matches[1];
+            }
+        }
+        sort($ids, SORT_NUMERIC);
+
+        return $ids;
     }
 
     /**

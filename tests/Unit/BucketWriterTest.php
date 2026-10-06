@@ -90,6 +90,7 @@ final class BucketWriterTest extends TestCase
         $this->assertSame(gmdate('Y-m-d\TH:i:s\Z', 1756978800), $status['earliestReadingAt']);
         $this->assertSame(gmdate('Y-m-d\TH:i:s\Z', 1756979400), $status['latestReadingAt']);
         $this->assertFalse($status['loginRequired']);
+        $this->assertSame([1756979400], $status['buckets']);
 
         // Nothing plaintext ever reaches the served directory.
         $this->assertFileDoesNotExist($this->directory . '/b/1756979400.json');
@@ -104,6 +105,27 @@ final class BucketWriterTest extends TestCase
 
         $this->assertFileDoesNotExist($this->directory . '/b/1756979400.json.asc');
         $this->assertFalse($writer->exists(1756979400));
+    }
+
+    public function testStatusListsOnlyRealBucketFilesInOrder(): void
+    {
+        $writer = $this->writer();
+        $reading = static fn (string $iso): GlucoseReadingDTO => new GlucoseReadingDTO([
+            'timestamp' => $iso,
+            'glucoseMgDl' => 120,
+            'trend' => null,
+            'trendArrow' => null,
+        ]);
+
+        $writer->writeBatch(1756979700, [$reading('2026-09-04T09:15:00Z')]);
+        $writer->writeBatch(1756979400, [$reading('2026-09-04T09:10:00Z')]);
+        file_put_contents($this->directory . '/b/notes.txt', 'ignore');
+        file_put_contents($this->directory . '/b/1756979900.json', '{"glucoseMgDl":1}');
+
+        $writer->writeStatus(1756979400, 1756979700);
+
+        $status = $this->decrypt('status.json.asc');
+        $this->assertSame([1756979400, 1756979700], $status['buckets']);
     }
 
     public function testExistsReportsWrittenBatches(): void

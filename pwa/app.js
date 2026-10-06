@@ -29,11 +29,13 @@
     const DAY_MS = 24 * 3600 * 1000;
     const PLOT_10M_MS = 10 * MINUTE_MS;
     const PLOT_1H_MS = 60 * MINUTE_MS;
-    // Cold start (no persisted history) probes at most this many buckets back,
-    // since with no listing a browser can only discover buckets by probing.
-    // 8640 x 300s = 30 days. Warm loads are incremental and are not capped.
+    // Cold start fetches at most this many bucket files (30 days of 5-minute
+    // slots). Warm loads are incremental. status.buckets names the files that
+    // exist so a cold start does not probe the empty slots between readings.
     const MAX_BACKFILL_BUCKETS = 8640;
     const FETCH_CONCURRENCY = 8;
+    // A sensor gap must not make every poll re-download the walked range.
+    const REWIND_MIN_MS = 15 * 60 * 1000;
 
     const valueEl = document.getElementById('value');
     const arrowEl = document.getElementById('arrow');
@@ -124,6 +126,10 @@
     let bucketSeconds = 300;
     let consumedBucket = null;
     let lastCurrentTs = null;
+    let refreshInFlight = false;
+    let refreshAgain = false;
+    let lastRewindTo = null;
+    let lastRewindAt = 0;
     const absentBuckets = new Set();
     let viewStart = null;
     let viewEnd = null;
@@ -746,12 +752,122 @@
         return readings;
     }
 
+    // Integer bucket ids from status.buckets. Null means this server has no
+    // index and the client still has to probe the clock.
+    function normalizeBucketIndex(value) {
+        if (!Array.isArray(value)) {
+            return null;
+        }
+        const seen = new Set();
+        const ids = [];
+        for (let i = 0; i < value.length; i += 1) {
+            const bucket = value[i];
+            if (typeof bucket !== 'number' || !Number.isInteger(bucket) || bucket < 0 || seen.has(bucket)) {
+                continue;
+            }
+            seen.add(bucket);
+            ids.push(bucket);
+        }
+        ids.sort((a, b) => a - b);
+        return ids;
+    }
+
+    // Which bucket files to GET. An index fetches existing files plus the open
+    // bucket. Without one, every slot from `from` through the last finalized
+    // bucket is probed. `previousIndex` is the last index we stored; ids that
+    // appear before `from` are catch-up writes into a range already walked.
+    function historyBuckets({
+        index,
+        previousIndex = null,
+        from,
+        lastFinal,
+        openBucket,
+        bucketSeconds,
+        coldStart = false,
+        maxBuckets = MAX_BACKFILL_BUCKETS,
+        recentFloor = null,
+    }) {
+        if (index == null) {
+            const buckets = [];
+            if (bucketSeconds > 0) {
+                for (let bucket = from; bucket <= lastFinal; bucket += bucketSeconds) {
+                    buckets.push(bucket);
+                }
+            }
+            if (openBucket > lastFinal) {
+                buckets.push(openBucket);
+            }
+            return { buckets, indexed: false };
+        }
+
+        const previous = previousIndex == null ? null : new Set(previousIndex);
+        const chosen = [];
+        const seen = new Set();
+        for (let i = 0; i < index.length; i += 1) {
+            const bucket = index[i];
+            const inRange = bucket >= from && bucket <= lastFinal;
+            const catchUp = previous != null && bucket < from && !previous.has(bucket);
+            const recent = recentFloor != null && bucket >= recentFloor && bucket < from;
+            if (!inRange && !catchUp && !recent) {
+                continue;
+            }
+            if (seen.has(bucket)) {
+                continue;
+            }
+            seen.add(bucket);
+            chosen.push(bucket);
+        }
+        if (coldStart && chosen.length > maxBuckets) {
+            chosen.splice(0, chosen.length - maxBuckets);
+        }
+        if (openBucket >= from && !chosen.includes(openBucket)) {
+            chosen.push(openBucket);
+        }
+        return { buckets: chosen, indexed: true };
+    }
+
+    // True when a gap should rewind the checkpoint. A later or equal gap waits
+    // out the interval. An older gap replays immediately.
+    function shouldReplayRewind(rewindTo, lastTo, now, lastAt, minInterval) {
+        if (lastTo == null || lastAt == null) {
+            return true;
+        }
+        if (rewindTo < lastTo) {
+            return true;
+        }
+        return now - lastAt >= minInterval;
+    }
+
+    function storedBucketIndex() {
+        try {
+            return normalizeBucketIndex(JSON.parse(localStorage.getItem(storageKey('b.idx')) || 'null'));
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function storeBucketIndex(index) {
+        if (index == null) {
+            return;
+        }
+        try {
+            localStorage.setItem(storageKey('b.idx'), JSON.stringify(index));
+        } catch (error) {
+            // The checkpoint still advances. The next poll retries new ids
+            // only when this list survives.
+        }
+    }
+
     // Catch-up files land at sensor-time URLs the dashboard may already have
     // walked as 404s. Rewind to the left edge of a hole so those buckets are
     // fetched again. Compare minute-floored times: current.json has seconds,
     // localStorage does not, and once current is merged the tail gap vanishes
-    // while a 20+ minute interior hole remains.
+    // while a 20+ minute interior hole remains. Servers that publish
+    // status.buckets skip this: the index diff fetches the new file instead.
     function rewindForRestore(current, status) {
+        if (Array.isArray(status && status.buckets)) {
+            return;
+        }
         const currentTs = Math.floor(readingTime(current) / MINUTE_MS) * MINUTE_MS;
         if (!Number.isFinite(currentTs)) {
             return;
@@ -793,6 +909,12 @@
         }
 
         const rewindTo = bucketOf(Math.floor(rewindFrom / 1000)) - bucketSeconds;
+        const now = Date.now();
+        if (!shouldReplayRewind(rewindTo, lastRewindTo, now, lastRewindAt, REWIND_MIN_MS)) {
+            return;
+        }
+        lastRewindAt = now;
+        lastRewindTo = lastRewindTo == null ? rewindTo : Math.min(lastRewindTo, rewindTo);
         consumedBucket = consumedBucket == null ? rewindTo : Math.min(consumedBucket, rewindTo);
         for (const bucket of [...absentBuckets]) {
             if (bucket >= rewindTo) {
@@ -830,17 +952,28 @@
             consumedBucket = null;
         }
         const floorBucket = lastFinal - MAX_BACKFILL_BUCKETS * bucketSeconds;
-        const from = consumedBucket === null
+        const coldStart = consumedBucket === null;
+        const from = coldStart
             ? Math.max(firstBucket, floorBucket)
             : Math.max(firstBucket, consumedBucket + bucketSeconds);
-
-        const buckets = [];
-        for (let bucket = from; bucket <= lastFinal; bucket += bucketSeconds) {
-            buckets.push(bucket);
-        }
-        if (!buckets.includes(openBucket)) {
-            buckets.push(openBucket);
-        }
+        const index = normalizeBucketIndex(status.buckets);
+        const previousIndex = coldStart ? null : storedBucketIndex();
+        const plan = historyBuckets({
+            index,
+            previousIndex,
+            from,
+            lastFinal,
+            openBucket,
+            bucketSeconds,
+            coldStart,
+            maxBuckets: MAX_BACKFILL_BUCKETS,
+            // First indexed load still picks up catch-up files from the last day
+            // that an older client already walked as empty.
+            recentFloor: !coldStart && index != null && previousIndex == null
+                ? openBucket - Math.floor(DAY_MS / 1000)
+                : null,
+        });
+        const buckets = plan.buckets;
 
         const fetched = [];
         const outcome = new Map();
@@ -876,7 +1009,12 @@
         if (lastFinal >= firstBucket) {
             let contiguous = from - bucketSeconds;
             for (let bucket = from; bucket <= lastFinal; bucket += bucketSeconds) {
-                const result = outcome.get(bucket);
+                // Unlisted slots are empty. Advancing past them keeps the next
+                // poll on the live edge instead of re-probing the whole window.
+                let result = outcome.get(bucket);
+                if (result == null && plan.indexed) {
+                    result = 'absent';
+                }
                 if (result === 'ok' || result === 'absent') {
                     contiguous = bucket;
                     continue;
@@ -900,6 +1038,10 @@
             if (prevSeconds !== String(bucketSeconds)) {
                 localStorage.setItem(storageKey('bucketSeconds'), String(bucketSeconds));
             }
+        }
+
+        if (index != null) {
+            storeBucketIndex(index);
         }
 
         return fetched;
@@ -1953,6 +2095,24 @@
         if (!vaultKeys) {
             return;
         }
+        // The history walk can outlast the poll interval. A second walk would
+        // start at the same checkpoint and request every bucket again.
+        if (refreshInFlight) {
+            refreshAgain = true;
+            return;
+        }
+        refreshInFlight = true;
+        try {
+            do {
+                refreshAgain = false;
+                await refreshOnce();
+            } while (refreshAgain);
+        } finally {
+            refreshInFlight = false;
+        }
+    }
+
+    async function refreshOnce() {
         let snapshotLoginRequired = false;
         try {
             const [currentRes, statusRes] = await Promise.all([
