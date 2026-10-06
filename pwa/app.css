@@ -529,10 +529,18 @@ body:not(.locked) .unlock-gate {
 .chart-overview-wrap {
     height: 84px;
     margin-top: 0.35rem;
-    cursor: ew-resize;
+    cursor: grab;
     touch-action: none;
     background: var(--chart-plot);
     border-radius: 10px;
+}
+
+.chart-overview-wrap.brush-resize {
+    cursor: ew-resize;
+}
+
+.chart-overview-wrap.brush-grabbing {
+    cursor: grabbing;
 }
 
 .chart-main canvas,

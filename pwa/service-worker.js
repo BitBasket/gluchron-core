@@ -1,4 +1,4 @@
-const CACHE = 'gluchron-static-v38';
+const CACHE = 'gluchron-static-v39';
 const ASSETS = [
     '/',
     '/index.html',

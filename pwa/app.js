@@ -19,6 +19,10 @@
     const RANGE_ORANGE = '#f08c32';
     const FILL_ALPHA = 0.55;
     const MIN_WINDOW_MS = 15 * 60 * 1000;
+    // Overview edge handles, in CSS pixels. A long history squeezes a short
+    // window narrower than the two handles, and a drag then resizes it.
+    const BRUSH_HANDLE_PX = 10;
+    const BRUSH_NARROW_PX = 28;
     // LibreLinkUp graphData is ~15-minute samples; keep those connected after a backfill.
     const GAP_MS = 20 * 60 * 1000;
     const MINUTE_MS = 60 * 1000;
@@ -1226,6 +1230,24 @@
         }
     }
 
+    // Slide the current window by a fraction of its span. The step is at least
+    // one minute so a zoomed-in window still moves on a single keypress.
+    function windowShift(start, end, direction, portion, minStepMs) {
+        const span = Math.max(0, end - start);
+        const sign = direction < 0 ? -1 : 1;
+        const step = Math.max(minStepMs, span * portion) * sign;
+        return { start: start + step, end: end + step };
+    }
+
+    function shiftWindow(direction, portion) {
+        if (!allReadings.length || viewStart == null || viewEnd == null) {
+            return;
+        }
+        const next = windowShift(viewStart, viewEnd, direction, portion, MINUTE_MS);
+        setWindow(next.start, next.end, allReadings);
+        renderChart(allReadings);
+    }
+
     function yLimits(points) {
         const values = points.map((point) => point.y).filter((value) => value != null);
         if (!values.length) {
@@ -1496,10 +1518,13 @@
             ctx.fillRect(right, chartArea.top, chartArea.right - right, chartArea.bottom - chartArea.top);
             ctx.strokeStyle = 'rgba(61, 220, 151, 0.85)';
             ctx.lineWidth = 2;
-            ctx.strokeRect(left, chartArea.top, Math.max(2, right - left), chartArea.bottom - chartArea.top);
-            ctx.fillStyle = '#3ddc97';
-            ctx.fillRect(left - 2, chartArea.top, 4, chartArea.bottom - chartArea.top);
-            ctx.fillRect(right - 2, chartArea.top, 4, chartArea.bottom - chartArea.top);
+            const width = Math.max(0, right - left);
+            ctx.strokeRect(left, chartArea.top, Math.max(2, width), chartArea.bottom - chartArea.top);
+            if (width >= BRUSH_NARROW_PX) {
+                ctx.fillStyle = '#3ddc97';
+                ctx.fillRect(left - 2, chartArea.top, 4, chartArea.bottom - chartArea.top);
+                ctx.fillRect(right - 2, chartArea.top, 4, chartArea.bottom - chartArea.top);
+            }
             ctx.restore();
         },
     };
@@ -1770,21 +1795,65 @@
         return overviewChart.scales.x.getValueForPixel(pos.x);
     }
 
+    // Hit target for the history selector. `startX`/`endX` are CSS pixels.
+    function brushHit(posX, startX, endX, time, viewStart, viewEnd) {
+        const move = { mode: 'move', time, start: viewStart, end: viewEnd };
+        const insideTime = time >= viewStart && time <= viewEnd;
+        if (!Number.isFinite(startX) || !Number.isFinite(endX) || !Number.isFinite(posX)) {
+            return insideTime ? move : { mode: 'jump', time };
+        }
+        const left = Math.min(startX, endX);
+        const right = Math.max(startX, endX);
+        const width = right - left;
+        // Narrow selector: the edge bars overlap the body, so anything on the
+        // drawn window moves it. Resize stays available just outside that pad.
+        if (width < BRUSH_NARROW_PX) {
+            const pad = 6;
+            if (posX >= left - pad && posX <= right + pad) {
+                return move;
+            }
+            if (posX < left && left - posX <= BRUSH_HANDLE_PX) {
+                return { mode: 'start', time };
+            }
+            if (posX > right && posX - right <= BRUSH_HANDLE_PX) {
+                return { mode: 'end', time };
+            }
+        } else {
+            const inner = Math.min(BRUSH_HANDLE_PX, width / 3);
+            if (posX >= left && posX <= right) {
+                if (posX <= left + inner) {
+                    return { mode: 'start', time };
+                }
+                if (posX >= right - inner) {
+                    return { mode: 'end', time };
+                }
+                return move;
+            }
+            if (posX < left && left - posX <= BRUSH_HANDLE_PX) {
+                return { mode: 'start', time };
+            }
+            if (posX > right && posX - right <= BRUSH_HANDLE_PX) {
+                return { mode: 'end', time };
+            }
+        }
+        return insideTime ? move : { mode: 'jump', time };
+    }
+
     function brushMode(event) {
         const time = overviewTime(event);
         const pos = eventPosition(event, overviewChart);
         const startX = overviewChart.scales.x.getPixelForValue(viewStart);
         const endX = overviewChart.scales.x.getPixelForValue(viewEnd);
-        if (Math.abs(pos.x - startX) <= 10) {
-            return { mode: 'start', time };
+        return brushHit(pos.x, startX, endX, time, viewStart, viewEnd);
+    }
+
+    function setBrushCursor(mode, dragging) {
+        const wrap = overviewCanvas.parentElement;
+        if (!wrap) {
+            return;
         }
-        if (Math.abs(pos.x - endX) <= 10) {
-            return { mode: 'end', time };
-        }
-        if (time >= viewStart && time <= viewEnd) {
-            return { mode: 'move', time, start: viewStart, end: viewEnd };
-        }
-        return { mode: 'jump', time };
+        wrap.classList.toggle('brush-resize', mode === 'start' || mode === 'end');
+        wrap.classList.toggle('brush-grabbing', dragging && mode === 'move');
     }
 
     overviewCanvas.addEventListener('pointerdown', (event) => {
@@ -1800,12 +1869,18 @@
         } else {
             brushState = { ...next, pointerId: event.pointerId };
         }
+        setBrushCursor(brushState.mode, brushState.mode === 'move');
         overviewCanvas.setPointerCapture(event.pointerId);
     });
     overviewCanvas.addEventListener('pointermove', (event) => {
-        if (!brushState || brushState.pointerId !== event.pointerId) {
+        const dragging = brushState && brushState.pointerId === event.pointerId;
+        if (!dragging) {
+            if (!brushState && overviewChart && allReadings.length && viewStart != null) {
+                setBrushCursor(brushMode(event).mode, false);
+            }
             return;
         }
+        setBrushCursor(brushState.mode, true);
         const time = overviewTime(event);
         if (brushState.mode === 'start') {
             setWindow(Math.min(time, viewEnd - MIN_WINDOW_MS), viewEnd, allReadings);
@@ -1818,12 +1893,23 @@
         renderChart(allReadings);
     });
     const endBrush = (event) => {
-        if (brushState && brushState.pointerId === event.pointerId) {
-            brushState = null;
+        if (!brushState || brushState.pointerId !== event.pointerId) {
+            return;
+        }
+        brushState = null;
+        if (overviewChart && allReadings.length && viewStart != null) {
+            setBrushCursor(brushMode(event).mode, false);
+        } else {
+            setBrushCursor('jump', false);
         }
     };
     overviewCanvas.addEventListener('pointerup', endBrush);
     overviewCanvas.addEventListener('pointercancel', endBrush);
+    overviewCanvas.addEventListener('pointerleave', () => {
+        if (!brushState) {
+            setBrushCursor('jump', false);
+        }
+    });
 
     async function loadConfig() {
         const response = await fetchLive('status.json.asc');
@@ -2519,14 +2605,33 @@
             closeSettings();
         }
     });
+    function keyTargetIsTyping(target) {
+        return !!(target && target.closest && target.closest('input, textarea, select, [contenteditable="true"]'));
+    }
+
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && migrateCloudModal && !migrateCloudModal.classList.contains('hidden')) {
             closeMigrateCloud();
             return;
         }
-        if (event.key === 'Escape' && !settingsModal.classList.contains('hidden')) {
+        if (event.key === 'Escape' && settingsModal && !settingsModal.classList.contains('hidden')) {
             closeSettings();
+            return;
         }
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+            return;
+        }
+        if (event.altKey || event.ctrlKey || event.metaKey || keyTargetIsTyping(event.target)) {
+            return;
+        }
+        const modalOpen = [settingsModal, migrateCloudModal, importPassphraseModal].some(
+            (el) => el && !el.classList.contains('hidden'),
+        );
+        if (modalOpen) {
+            return;
+        }
+        event.preventDefault();
+        shiftWindow(event.key === 'ArrowLeft' ? -1 : 1, event.shiftKey ? 0.5 : 0.1);
     });
     settingsReset.addEventListener('click', () => {
         settingsHypoEl.value = String(DEFAULT_SETTINGS.hypoglycemic);
