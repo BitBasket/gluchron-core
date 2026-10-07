@@ -205,13 +205,15 @@ final class LibreLinkUpProvider implements GlucoseProvider, LibreLinkAuthenticat
         $data = is_object($payload) ? $this->property($payload, 'data') : null;
         $apiStatus = is_object($payload) ? $this->property($payload, 'status') : null;
 
-        if (is_object($data) && $this->property($data, 'redirect') && $this->property($data, 'region')) {
-            if ($redirectHops >= 2) {
-                throw new LibreLinkAuthException('LibreLinkUp authentication failed: regional discovery looped');
+        if (is_object($payload)) {
+            $region = $this->redirectRegion($payload);
+            if ($region !== null) {
+                if ($redirectHops >= 2) {
+                    throw new LibreLinkAuthException('LibreLinkUp authentication failed: regional discovery looped');
+                }
+                $this->logger->info('LibreLinkUp redirected to region ' . $region);
+                return $this->loginAt(LibreLinkUpEndpoints::baseUriForRegion($region), $redirectHops + 1);
             }
-            $region = (string) $this->property($data, 'region');
-            $this->logger->info('LibreLinkUp redirected to region ' . $region);
-            return $this->loginAt(LibreLinkUpEndpoints::baseUriForRegion($region), $redirectHops + 1);
         }
 
         if ((int) $apiStatus !== 0) {
@@ -259,7 +261,7 @@ final class LibreLinkUpProvider implements GlucoseProvider, LibreLinkAuthenticat
         return [$this->email, $this->password];
     }
 
-    private function request(string $method, string $path, bool $allowReauth): object
+    private function request(string $method, string $path, bool $allowReauth, int $redirectHops = 0): object
     {
         $payload = $this->send($method, $path);
         $status = $this->lastStatus;
@@ -268,7 +270,7 @@ final class LibreLinkUpProvider implements GlucoseProvider, LibreLinkAuthenticat
             $this->sessions->clear();
             $this->session = null;
             $this->authenticate();
-            return $this->request($method, $path, allowReauth: false);
+            return $this->request($method, $path, allowReauth: false, redirectHops: $redirectHops);
         }
 
         $this->assertHttpOk($status, 'LibreLinkUp request failed');
@@ -277,7 +279,46 @@ final class LibreLinkUpProvider implements GlucoseProvider, LibreLinkAuthenticat
             $this->rejectMeasurement('body was not a JSON object', $payload);
         }
 
+        // A stored session can still be aimed at the global host. Connections
+        // and graph then answer HTTP 200 with {redirect, region} instead of a
+        // reading. Log in on that regional host and repeat the call.
+        $region = $this->redirectRegion($payload);
+        if ($region !== null) {
+            if ($redirectHops >= 2) {
+                throw new LibreLinkAuthException('LibreLinkUp request failed: regional discovery looped');
+            }
+            $this->logger->info('LibreLinkUp redirected to region ' . $region);
+            $this->reauthenticateAt(LibreLinkUpEndpoints::baseUriForRegion($region));
+            return $this->request($method, $path, allowReauth: false, redirectHops: $redirectHops + 1);
+        }
+
         return $payload;
+    }
+
+    private function redirectRegion(object $payload): ?string
+    {
+        $data = $this->property($payload, 'data');
+        $subject = is_object($data) || is_array($data) ? $this->asObject($data) : $payload;
+        $region = $this->property($subject, 'region');
+        if (!$this->property($subject, 'redirect') || !is_string($region) || trim($region) === '') {
+            return null;
+        }
+
+        return $region;
+    }
+
+    private function reauthenticateAt(string $baseUri): void
+    {
+        $knownPatient = $this->session->patientId ?? '';
+        if ($knownPatient !== '' && $this->patientId === '') {
+            $this->patientId = $knownPatient;
+        }
+        $this->sessions->clear();
+        $this->session = null;
+        $session = $this->loginAt($baseUri, 0);
+        $this->session = $session;
+        $this->sessions->save($session);
+        $this->api = $this->authenticatedSpeaker($session);
     }
 
     /**

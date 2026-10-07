@@ -276,6 +276,78 @@ final class LibreLinkUpProviderTest extends TestCase
         $this->assertSame('llu/connections/patient-1/graph', $this->path($history[0]));
     }
 
+    public function testGraphRedirectLogsInOnTheRegionalHost(): void
+    {
+        $history = [];
+        $tmp = sys_get_temp_dir() . '/gluchron-session-' . uniqid('', true);
+        @mkdir($tmp, 0700, true);
+        file_put_contents($tmp . '/libre-session.json', json_encode([
+            'token' => 'test-token',
+            'baseUri' => 'https://api.libreview.io/',
+            'accountId' => '11111111-1111-1111-1111-111111111111',
+            'patientId' => 'patient-1',
+        ], JSON_THROW_ON_ERROR));
+        $provider = $this->provider([
+            $this->jsonResponse('{"status":0,"data":{"redirect":true,"region":"eu"}}'),
+            $this->jsonResponse($this->fixture('login-success.json')),
+            $this->jsonResponse($this->fixture('graph.json')),
+        ], $history, ConfigFactory::make($tmp));
+
+        $reading = $provider->getCurrentReading();
+
+        $this->assertSame(174, $reading->glucoseMgDl);
+        $this->assertSame('llu/connections/patient-1/graph', $this->path($history[0]));
+        $this->assertStringContainsString('api.libreview.io', (string) $history[0]['request']->getUri());
+        $this->assertSame('llu/auth/login', $this->path($history[1]));
+        $this->assertStringContainsString('api-eu.libreview.io', (string) $history[1]['request']->getUri());
+        $this->assertSame('llu/connections/patient-1/graph', $this->path($history[2]));
+        $this->assertStringContainsString('api-eu.libreview.io', (string) $history[2]['request']->getUri());
+    }
+
+    public function testConnectionsRedirectLogsInOnTheRegionalHost(): void
+    {
+        $history = [];
+        $provider = $this->provider([
+            $this->jsonResponse($this->fixture('login-success.json')),
+            $this->jsonResponse('{"status":0,"data":{"redirect":true,"region":"eu"}}'),
+            $this->jsonResponse($this->fixture('login-success.json')),
+            $this->jsonResponse($this->fixture('connections.json')),
+            $this->jsonResponse($this->fixture('graph.json')),
+        ], $history);
+
+        $reading = $provider->getCurrentReading();
+
+        $this->assertSame(174, $reading->glucoseMgDl);
+        $this->assertSame('llu/connections', $this->path($history[1]));
+        $this->assertStringContainsString('api-eu.libreview.io', (string) $history[3]['request']->getUri());
+        $this->assertStringContainsString('api-eu.libreview.io', (string) $history[4]['request']->getUri());
+    }
+
+    public function testRegionalRedirectLoopStops(): void
+    {
+        $history = [];
+        $tmp = sys_get_temp_dir() . '/gluchron-session-' . uniqid('', true);
+        @mkdir($tmp, 0700, true);
+        file_put_contents($tmp . '/libre-session.json', json_encode([
+            'token' => 'test-token',
+            'baseUri' => 'https://api.libreview.io/',
+            'accountId' => '11111111-1111-1111-1111-111111111111',
+            'patientId' => 'patient-1',
+        ], JSON_THROW_ON_ERROR));
+        $redirect = $this->jsonResponse('{"status":0,"data":{"redirect":true,"region":"eu"}}');
+        $provider = $this->provider([
+            $redirect,
+            $this->jsonResponse($this->fixture('login-success.json')),
+            $redirect,
+            $this->jsonResponse($this->fixture('login-success.json')),
+            $redirect,
+        ], $history, ConfigFactory::make($tmp));
+
+        $this->expectException(LibreLinkAuthException::class);
+        $this->expectExceptionMessage('regional discovery looped');
+        $provider->getCurrentReading();
+    }
+
     public function testReauthenticatesAfter401OnGraph(): void
     {
         $history = [];
