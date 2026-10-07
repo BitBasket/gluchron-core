@@ -141,7 +141,31 @@ final class LibreLinkUpProviderTest extends TestCase
         ], $history);
 
         $this->expectException(LibreLinkResponseException::class);
+        $this->expectExceptionMessage('connection.glucoseMeasurement was missing');
+        $this->expectExceptionMessage('{"connection":{}}');
         $provider->getCurrentReading();
+    }
+
+    public function testMissingDataIncludesTheResponseBody(): void
+    {
+        $history = [];
+        $provider = $this->provider([
+            $this->jsonResponse($this->fixture('login-success.json')),
+            $this->jsonResponse($this->fixture('connections.json')),
+            $this->jsonResponse('{"status":4,"data":null,"ticket":{"token":"secret-token"}}'),
+        ], $history);
+
+        try {
+            $provider->getCurrentReading();
+            $this->fail('Expected a LibreLink response exception');
+        } catch (LibreLinkResponseException $e) {
+            $message = $e->getMessage();
+            $this->assertStringContainsString('data was not an object', $message);
+            $this->assertStringContainsString('HTTP 200', $message);
+            $this->assertStringContainsString('"status":4', $message);
+            $this->assertStringContainsString('[redacted]', $message);
+            $this->assertStringNotContainsString('secret-token', $message);
+        }
     }
 
     public function testRemembersPatientIdSoLaterPollsSkipConnectionLookup(): void

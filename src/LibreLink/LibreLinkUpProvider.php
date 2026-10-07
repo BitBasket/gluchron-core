@@ -136,7 +136,7 @@ final class LibreLinkUpProvider implements GlucoseProvider, LibreLinkAuthenticat
         $payload = $this->request('GET', LibreLinkUpEndpoints::graph($patientId), allowReauth: true);
         $data = $this->property($payload, 'data');
         if (!is_object($data) && !is_array($data)) {
-            throw new LibreLinkResponseException('LibreLinkUp response did not contain a glucose measurement');
+            $this->rejectMeasurement('data was not an object', $payload);
         }
 
         return $this->asObject($data);
@@ -274,7 +274,7 @@ final class LibreLinkUpProvider implements GlucoseProvider, LibreLinkAuthenticat
         $this->assertHttpOk($status, 'LibreLinkUp request failed');
 
         if (!is_object($payload)) {
-            throw new LibreLinkResponseException('LibreLinkUp response did not contain a glucose measurement');
+            $this->rejectMeasurement('body was not a JSON object', $payload);
         }
 
         return $payload;
@@ -337,20 +337,20 @@ final class LibreLinkUpProvider implements GlucoseProvider, LibreLinkAuthenticat
             }
         }
 
-        throw new LibreLinkResponseException('LibreLinkUp response did not contain a glucose measurement');
+        $this->rejectMeasurement('connection.glucoseMeasurement was missing', $graph);
     }
 
     private function normalizeReading(object $abbott): GlucoseReadingDTO
     {
         $mgDl = $this->property($abbott, 'ValueInMgPerDl');
         if (!is_numeric($mgDl)) {
-            throw new LibreLinkResponseException('LibreLinkUp response did not contain a glucose measurement');
+            $this->rejectMeasurement('ValueInMgPerDl was not numeric', $abbott);
         }
 
         $timestamp = $this->property($abbott, 'FactoryTimestamp')
             ?? $this->property($abbott, 'Timestamp');
         if (!is_string($timestamp) || $timestamp === '') {
-            throw new LibreLinkResponseException('LibreLinkUp response did not contain a glucose measurement');
+            $this->rejectMeasurement('timestamp was missing', $abbott);
         }
 
         [$trend, $arrow] = TrendNormalizer::fromArrow($this->property($abbott, 'TrendArrow'));
@@ -415,6 +415,82 @@ final class LibreLinkUpProvider implements GlucoseProvider, LibreLinkAuthenticat
             return (object) $value;
         }
 
-        throw new LibreLinkResponseException('LibreLinkUp response did not contain a glucose measurement');
+        $this->rejectMeasurement('value was not an object', $value);
+    }
+
+    /**
+     * @return never
+     */
+    private function rejectMeasurement(string $reason, mixed $subject): void
+    {
+        $http = $this->lastStatus > 0 ? '; HTTP ' . $this->lastStatus : '';
+        throw new LibreLinkResponseException(
+            'LibreLinkUp response did not contain a glucose measurement'
+            . ' (' . $reason . $http . '): '
+            . $this->responseSnapshot($subject)
+        );
+    }
+
+    private function responseSnapshot(mixed $subject): string
+    {
+        $encoded = json_encode(
+            $this->prepareSnapshot($subject),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR
+        );
+        if (!is_string($encoded) || $encoded === '') {
+            return get_debug_type($subject);
+        }
+
+        $limit = 4000;
+        if (strlen($encoded) > $limit) {
+            return substr($encoded, 0, $limit) . '…';
+        }
+
+        return $encoded;
+    }
+
+    private function prepareSnapshot(mixed $value, int $depth = 0): mixed
+    {
+        if ($depth > 6) {
+            return '…';
+        }
+        if (is_object($value)) {
+            $copy = new \stdClass();
+            foreach (get_object_vars($value) as $key => $item) {
+                $copy->{$key} = $this->snapshotField((string) $key, $item, $depth);
+            }
+
+            return $copy;
+        }
+        if (is_array($value)) {
+            if (array_is_list($value) && count($value) > 3) {
+                return [
+                    '_count' => count($value),
+                    '_first' => isset($value[0]) ? $this->prepareSnapshot($value[0], $depth + 1) : null,
+                ];
+            }
+            $out = [];
+            foreach ($value as $key => $item) {
+                $out[$key] = is_string($key)
+                    ? $this->snapshotField($key, $item, $depth)
+                    : $this->prepareSnapshot($item, $depth + 1);
+            }
+
+            return $out;
+        }
+        if (is_string($value) && strlen($value) > 500) {
+            return substr($value, 0, 500) . '…';
+        }
+
+        return $value;
+    }
+
+    private function snapshotField(string $key, mixed $item, int $depth): mixed
+    {
+        if (in_array(strtolower($key), ['token', 'password', 'authorization'], true)) {
+            return '[redacted]';
+        }
+
+        return $this->prepareSnapshot($item, $depth + 1);
     }
 }
