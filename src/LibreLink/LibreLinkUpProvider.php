@@ -26,6 +26,9 @@ final class LibreLinkUpProvider implements GlucoseProvider, LibreLinkAuthenticat
 
     private int $lastStatus = -1;
 
+    /** Method and absolute URL of the most recent request, for error context. */
+    private string $lastRequestContext = '';
+
     private string $email = '';
 
     private string $password = '';
@@ -328,6 +331,9 @@ final class LibreLinkUpProvider implements GlucoseProvider, LibreLinkAuthenticat
     {
         $options['http_errors'] = false;
 
+        $base = (string) ($this->api->getConfig('base_uri') ?? '');
+        $this->lastRequestContext = strtoupper($method) . ' ' . $base . $path;
+
         try {
             $payload = strtoupper($method) === 'POST'
                 ? $this->api->post($path, $body, $options)
@@ -369,11 +375,12 @@ final class LibreLinkUpProvider implements GlucoseProvider, LibreLinkAuthenticat
             if ($status < 0) {
                 throw new LibreLinkNetworkException($prefix . ': network error');
             }
-            // Surface the server's own error body (5xx bodies from libreview
-            // hosts say which request feature was not implemented) so a bare
-            // "HTTP 501" log line is diagnosable.
+            // Surface which endpoint failed and the server's own error body
+            // (libreview hosts answer 5xx with {"status":501,"error":{...}})
+            // so a bare "HTTP 501" log line is diagnosable.
+            $context = $this->lastRequestContext !== '' ? ' [' . $this->lastRequestContext . ']' : '';
             $detail = $payload !== null ? ' ' . $this->responseSnapshot($payload) : '';
-            throw new LibreLinkResponseException($prefix . ': HTTP ' . $status . $detail);
+            throw new LibreLinkResponseException($prefix . ': HTTP ' . $status . $context . $detail);
         }
     }
 
