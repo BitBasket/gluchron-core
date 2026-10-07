@@ -200,7 +200,7 @@ final class LibreLinkUpProvider implements GlucoseProvider, LibreLinkAuthenticat
             'headers' => LibreLinkUpEndpoints::clientHeaders($this->config->libreLinkClientVersion),
         ]);
 
-        $this->assertHttpOk($this->lastStatus, 'LibreLinkUp authentication failed');
+        $this->assertHttpOk($this->lastStatus, 'LibreLinkUp authentication failed', $payload);
 
         $data = is_object($payload) ? $this->property($payload, 'data') : null;
         $apiStatus = is_object($payload) ? $this->property($payload, 'status') : null;
@@ -273,7 +273,7 @@ final class LibreLinkUpProvider implements GlucoseProvider, LibreLinkAuthenticat
             return $this->request($method, $path, allowReauth: false, redirectHops: $redirectHops);
         }
 
-        $this->assertHttpOk($status, 'LibreLinkUp request failed');
+        $this->assertHttpOk($status, 'LibreLinkUp request failed', $payload);
 
         if (!is_object($payload)) {
             $this->rejectMeasurement('body was not a JSON object', $payload);
@@ -357,7 +357,7 @@ final class LibreLinkUpProvider implements GlucoseProvider, LibreLinkAuthenticat
         }
     }
 
-    private function assertHttpOk(int $status, string $prefix): void
+    private function assertHttpOk(int $status, string $prefix, mixed $payload = null): void
     {
         if ($status === 429) {
             throw new LibreLinkRateLimitException('LibreLinkUp request rate-limited: HTTP 429');
@@ -369,7 +369,11 @@ final class LibreLinkUpProvider implements GlucoseProvider, LibreLinkAuthenticat
             if ($status < 0) {
                 throw new LibreLinkNetworkException($prefix . ': network error');
             }
-            throw new LibreLinkResponseException($prefix . ': HTTP ' . $status);
+            // Surface the server's own error body (5xx bodies from libreview
+            // hosts say which request feature was not implemented) so a bare
+            // "HTTP 501" log line is diagnosable.
+            $detail = $payload !== null ? ' ' . $this->responseSnapshot($payload) : '';
+            throw new LibreLinkResponseException($prefix . ': HTTP ' . $status . $detail);
         }
     }
 
