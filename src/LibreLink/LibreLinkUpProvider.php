@@ -299,7 +299,12 @@ final class LibreLinkUpProvider implements GlucoseProvider, LibreLinkAuthenticat
         } catch (\Throwable $e) {
             $response = method_exists($e, 'getResponse') ? $e->getResponse() : null;
             if ($response === null) {
-                throw new LibreLinkNetworkException('LibreLinkUp request failed: network error', 0, $e);
+                $detail = $this->oneLine($e->getMessage());
+                throw new LibreLinkNetworkException(
+                    'LibreLinkUp request failed: network error' . ($detail !== '' ? ': ' . $detail : ''),
+                    0,
+                    $e,
+                );
             }
             $this->lastStatus = $response->getStatusCode();
             $raw = (string) $response->getBody();
@@ -483,6 +488,16 @@ final class LibreLinkUpProvider implements GlucoseProvider, LibreLinkAuthenticat
         }
 
         return $value;
+    }
+
+    private function oneLine(string $message): string
+    {
+        $message = trim(preg_replace('/\s+/', ' ', $message) ?? $message);
+        if (strlen($message) > 500) {
+            return substr($message, 0, 500) . '…';
+        }
+
+        return $message;
     }
 
     private function snapshotField(string $key, mixed $item, int $depth): mixed

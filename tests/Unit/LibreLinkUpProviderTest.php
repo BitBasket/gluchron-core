@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit;
 
 use App\LibreLink\LibreLinkAuthException;
+use App\LibreLink\LibreLinkNetworkException;
 use App\LibreLink\LibreLinkRateLimitException;
 use App\LibreLink\LibreLinkResponseException;
 use App\LibreLink\LibreLinkUpProvider;
@@ -12,7 +13,9 @@ use App\LibreLink\SessionStore;
 use App\Support\Logger;
 use App\Tests\Support\ConfigFactory;
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
@@ -165,6 +168,22 @@ final class LibreLinkUpProviderTest extends TestCase
             $this->assertStringContainsString('"status":4', $message);
             $this->assertStringContainsString('[redacted]', $message);
             $this->assertStringNotContainsString('secret-token', $message);
+        }
+    }
+
+    public function testNetworkFailureIncludesTheTransportMessage(): void
+    {
+        $history = [];
+        $provider = $this->provider([
+            $this->jsonResponse($this->fixture('login-success.json')),
+            new ConnectException('cURL error 6: Could not resolve host', new Request('GET', 'https://api.libreview.io/llu/connections')),
+        ], $history);
+
+        try {
+            $provider->getCurrentReading();
+            $this->fail('Expected a LibreLink network exception');
+        } catch (LibreLinkNetworkException $e) {
+            $this->assertStringContainsString('Could not resolve host', $e->getMessage());
         }
     }
 
